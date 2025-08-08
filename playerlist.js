@@ -23,7 +23,7 @@ const add = (uuid) => {
         let player = {
             uuid,
             x: 0,     // posição inicial no eixo X
-            y: 2,     // altura
+            y: 3,     // altura
             z: 0      // profundidade
         };
         players.push(player);
