@@ -8,10 +8,13 @@ const getAll = () => {
 
 const get = (uuid) => {
     return new Promise((resolve) => {
-        players.map(player => {
-            if (player.uuid !== uuid) return;
-            resolve(player);
-        });
+        for (let player of players) {
+            if (player.uuid === uuid) {
+                resolve(player);
+                return;
+            }
+        }
+        resolve(null);
     });
 };
 
@@ -19,20 +22,24 @@ const add = (uuid) => {
     return new Promise((resolve) => {
         let player = {
             uuid,
-            "x": 620,
-            "y": 300,
+            x: 0,     // posição inicial no eixo X
+            y: 2,     // altura
+            z: 0      // profundidade
         };
         players.push(player);
         resolve(true);
     });
 };
 
-const update = (uuid, newX, newY) => {
-    players.map(player => {
-        if (player.uuid !== uuid) return;
-        player.x = newX;
-        player.y = newY;
-    });
+const update = (uuid, newX, newY, newZ) => {
+    for (let player of players) {
+        if (player.uuid === uuid) {
+            player.x = newX;
+            player.y = newY;
+            player.z = newZ;
+            break;
+        }
+    }
 };
 
 const remove = (uuid) => {
