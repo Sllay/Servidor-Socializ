@@ -1,3 +1,5 @@
+// server.js (versão atualizada)
+// ADICIONADO: aceita/repassa z, rot_y, is_running para suportar 3D e animação.
 const express = require("express");
 const WebSocket = require("ws");
 const { v4 } = require("uuid");
@@ -38,7 +40,7 @@ wss.on("connection", async (socket) => {
         }
     });
 
-    // Enviar todos os outros jogadores ao novo cliente
+    // Enviar todos os outros jogadores ao novo cliente (com z/rot_y/is_running)
     socket.send(JSON.stringify({
         cmd: "spawn_network_players",
         content: {
@@ -56,15 +58,28 @@ wss.on("connection", async (socket) => {
             return;
         }
 
-        if (data.cmd === "position") {
-            playerlist.update(uuid, data.content.x, data.content.y);
+        // ADICIONADO: aceitar tanto "position" quanto "update_position" enviados pelo cliente
+        if (data.cmd === "position" || data.cmd === "update_position") {
+            // pegar valores (z/rot_y/is_running opcionais)
+            const x = parseFloat(data.content.x) || 0;
+            const y = parseFloat(data.content.y) || 0;
+            const z = ("z" in data.content) ? parseFloat(data.content.z) : 0;
+            const rot_y = ("rot_y" in data.content) ? parseFloat(data.content.rot_y) : 0;
+            const is_running = ("is_running" in data.content) ? Boolean(data.content.is_running) : false;
 
+            // armazenar no playerlist (agora suporta 3D)
+            playerlist.update(uuid, x, y, z, rot_y, is_running);
+
+            // broadcast para outros clients com todos os campos 3D
             const update = {
                 cmd: "update_position",
                 content: {
                     uuid,
-                    x: data.content.x,
-                    y: data.content.y
+                    x,
+                    y,
+                    z,
+                    rot_y,
+                    is_running
                 }
             };
 
@@ -92,8 +107,6 @@ wss.on("connection", async (socket) => {
     });
 
     socket.on("close", () => {
-        console.log(`Cliente ${uuid} desconectado.`);
-
         // Remover da lista
         playerlist.remove(uuid);
 
