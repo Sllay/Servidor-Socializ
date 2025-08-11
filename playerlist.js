@@ -1,3 +1,5 @@
+// playerlist.js
+// ADICIONADO: versão completa que armazena x,y,z,rot_y,is_running (3D)
 let players = [];
 
 const getAll = () => {
@@ -18,28 +20,38 @@ const get = (uuid) => {
     });
 };
 
+// ADICIONADO: cria um novo jogador com valores padrão 3D
 const add = (uuid) => {
     return new Promise((resolve) => {
-        let player = {
-            uuid,
-            x: 0,     // posição inicial no eixo X
-            y: 10.00,     // altura
-            z: 0      // profundidade
+        const newPlayer = {
+            uuid: uuid,
+            x: 0.0,
+            y: 10.0,    // default spawn height (ajuste se quiser)
+            z: 0.0,
+            rot_y: 0.0,
+            is_running: false
         };
-        players.push(player);
-        resolve(true);
+        players.push(newPlayer);
+        resolve(newPlayer);
     });
 };
 
-const update = (uuid, newX, newY, newZ) => {
-    for (let player of players) {
-        if (player.uuid === uuid) {
-            player.x = newX;
-            player.y = newY;
-            player.z = newZ;
-            break;
+// ADICIONADO: atualiza posição/rot/estado do jogador (aceita undefineds)
+const update = (uuid, x = null, y = null, z = null, rot_y = null, is_running = null) => {
+    return new Promise((resolve) => {
+        for (let i = 0; i < players.length; i++) {
+            if (players[i].uuid === uuid) {
+                if (x !== null && x !== undefined) players[i].x = x;
+                if (y !== null && y !== undefined) players[i].y = y;
+                if (z !== null && z !== undefined) players[i].z = z;
+                if (rot_y !== null && rot_y !== undefined) players[i].rot_y = rot_y;
+                if (is_running !== null && is_running !== undefined) players[i].is_running = is_running;
+                resolve(players[i]);
+                return;
+            }
         }
-    }
+        resolve(null);
+    });
 };
 
 const remove = (uuid) => {
