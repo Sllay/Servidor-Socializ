@@ -1,5 +1,5 @@
 // playerlist.js
-// ADICIONADO: versão completa que armazena x,y,z,rot_y,is_running (3D)
+// CHANGES: ADICIONADO implementação completa para 3D (x,y,z), rot_y e is_running.
 let players = [];
 
 const getAll = () => {
@@ -36,7 +36,7 @@ const add = (uuid) => {
     });
 };
 
-// ADICIONADO: atualiza posição/rot/estado do jogador (aceita undefineds)
+// ADICIONADO: atualiza posição/rot/estado do jogador (aceita nulls)
 const update = (uuid, x = null, y = null, z = null, rot_y = null, is_running = null) => {
     return new Promise((resolve) => {
         for (let i = 0; i < players.length; i++) {
