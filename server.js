@@ -1,5 +1,5 @@
-// server.js (versão atualizada)
-// ADICIONADO: aceita/repassa z, rot_y, is_running para suportar 3D e animação.
+// server.js
+// CHANGES: ADICIONADO suporte 3D — aceita/repassa z, rot_y e is_running; mantém compatibilidade com "position"/"update_position".
 const express = require("express");
 const WebSocket = require("ws");
 const { v4 } = require("uuid");
