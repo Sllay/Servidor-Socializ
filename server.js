@@ -1,5 +1,7 @@
 // server.js
-// CHANGES: ADICIONADO suporte 3D — aceita/repassa z, rot_y e is_running; mantém compatibilidade com "position"/"update_position".
+// CHANGES: versão completa com suporte 3D (x,y,z), rot_y e is_running;
+//          aceita "position" ou "update_position" do cliente e re-broadcasta "update_position".
+// Requisitos: npm i express ws uuid
 const express = require("express");
 const WebSocket = require("ws");
 const { v4 } = require("uuid");
@@ -7,8 +9,9 @@ const playerlist = require("./playerlist.js");
 
 const app = express();
 const PORT = 9090;
+
 const server = app.listen(PORT, () => {
-    console.log("Server listening on port: " + PORT);
+    console.log("Servidor HTTP iniciado na porta:", PORT);
 });
 
 const wss = new WebSocket.Server({ server });
@@ -18,19 +21,21 @@ wss.on("connection", async (socket) => {
     await playerlist.add(uuid);
     const newPlayer = await playerlist.get(uuid);
 
-    // Enviar UUID ao cliente
+    console.log("Novo cliente conectado, uuid:", uuid);
+
+    // Enviar UUID e confirmação ao cliente
     socket.send(JSON.stringify({
         cmd: "joined_server",
         content: { msg: "Bem-vindo ao servidor!", uuid }
     }));
 
-    // Enviar jogador local
+    // Enviar jogador local (dados iniciais do próprio cliente)
     socket.send(JSON.stringify({
         cmd: "spawn_local_player",
         content: { msg: "Spawning local (you) player!", player: newPlayer }
     }));
 
-    // Enviar novo jogador para todos os outros
+    // Notificar outros clients sobre o novo jogador
     wss.clients.forEach((client) => {
         if (client !== socket && client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({
@@ -40,7 +45,7 @@ wss.on("connection", async (socket) => {
         }
     });
 
-    // Enviar todos os outros jogadores ao novo cliente (com z/rot_y/is_running)
+    // Enviar lista de jogadores já conectados ao novo cliente
     socket.send(JSON.stringify({
         cmd: "spawn_network_players",
         content: {
@@ -54,47 +59,59 @@ wss.on("connection", async (socket) => {
         try {
             data = JSON.parse(message.toString());
         } catch (err) {
-            console.error("Erro ao fazer parse do JSON:", err);
+            console.error("Erro ao fazer parse do JSON recebido:", err);
             return;
         }
 
-        // ADICIONADO: aceitar tanto "position" quanto "update_position" enviados pelo cliente
+        // Aceita tanto "position" (cliente antigo) quanto "update_position"
         if (data.cmd === "position" || data.cmd === "update_position") {
-            // pegar valores (z/rot_y/is_running opcionais)
-            const x = parseFloat(data.content.x) || 0;
-            const y = parseFloat(data.content.y) || 0;
-            const z = ("z" in data.content) ? parseFloat(data.content.z) : 0;
-            const rot_y = ("rot_y" in data.content) ? parseFloat(data.content.rot_y) : 0;
-            const is_running = ("is_running" in data.content) ? Boolean(data.content.is_running) : false;
+            // Valores esperados: x,y,z,rot_y,is_running (z/rot_y/is_running opcionais)
+            const content = data.content || {};
+            const x = ("x" in content) ? parseFloat(content.x) : 0;
+            const y = ("y" in content) ? parseFloat(content.y) : 0;
+            const z = ("z" in content) ? parseFloat(content.z) : 0;
+            const rot_y = ("rot_y" in content) ? parseFloat(content.rot_y) : 0;
+            const is_running = ("is_running" in content) ? Boolean(content.is_running) : false;
 
-            // armazenar no playerlist (agora suporta 3D)
-            playerlist.update(uuid, x, y, z, rot_y, is_running);
+            // Atualiza playerlist (3D)
+            playerlist.update(uuid, x, y, z, rot_y, is_running)
+                .then((updated) => {
+                    // Preparar payload para rebroadcast
+                    const update = {
+                        cmd: "update_position",
+                        content: {
+                            uuid,
+                            x,
+                            y,
+                            z,
+                            rot_y,
+                            is_running
+                        }
+                    };
 
-            // broadcast para outros clients com todos os campos 3D
-            const update = {
-                cmd: "update_position",
-                content: {
-                    uuid,
-                    x,
-                    y,
-                    z,
-                    rot_y,
-                    is_running
-                }
-            };
+                    // DEBUG: imprimir payload enviado (útil para ver se os valores estão corretos)
+                    console.log("broadcasting update_position:", update.content);
 
-            wss.clients.forEach((client) => {
-                if (client !== socket && client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify(update));
-                }
-            });
+                    // Enviar a todos exceto o remetente
+                    wss.clients.forEach((client) => {
+                        if (client !== socket && client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify(update));
+                        }
+                    });
+                })
+                .catch((err) => {
+                    console.error("Erro ao atualizar playerlist:", err);
+                });
+
+            return;
         }
 
+        // Mensagens de chat (mantidas)
         if (data.cmd === "chat") {
             const chat = {
                 cmd: "new_chat_message",
                 content: {
-                    msg: data.content.msg
+                    msg: data.content.msg || ""
                 }
             };
 
@@ -103,11 +120,15 @@ wss.on("connection", async (socket) => {
                     client.send(JSON.stringify(chat));
                 }
             });
+            return;
         }
+
+        // Outras mensagens podem ser logadas para debug
+        console.log("Mensagem desconhecida recebida:", data.cmd, data.content);
     });
 
     socket.on("close", () => {
-        // Remover da lista
+        console.log("Cliente desconectou, uuid:", uuid);
         playerlist.remove(uuid);
 
         // Avisar os outros jogadores
@@ -119,5 +140,9 @@ wss.on("connection", async (socket) => {
                 }));
             }
         });
+    });
+
+    socket.on("error", (err) => {
+        console.error("WebSocket error (uuid " + uuid + "):", err);
     });
 });
